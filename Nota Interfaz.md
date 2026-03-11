@@ -11,50 +11,19 @@ La versión actual colecta los datos captados por un único ESP32 y simula los d
 
 # Diagrama de flujo:
 
-INICIO
-  |
-  v
-[Adquisición de variables ambientales]
-  |
-  v
-[ESP32 procesa las mediciones]
-  |
-  +---------------------------+
-  |                           |
-  v                           v
-[Visualización local]     [Envío de datos por MQTT]
-[OLED]                    |
-                           v
-                    [Central de monitoreo / GUI]
-                           |
-                           v
-               [Visualización en tiempo real]
-                           |
-            +--------------+--------------+
-            |                             |
-            v                             v
- [¿Variable fuera de rango?]      [¿Controlador desconectado?]
-            |                             |
-         Sí |                             | Sí
-            v                             v
- [Alerta sonora en buzzer]        [Alerta visual en GUI]
- [Alerta visual en GUI]                    |
-            |                              |
-            +--------------+---------------+
-                           |
-                           v
-              [Vista detallada por incubadora]
-                           |
-          +----------------+-------------------+
-          |                |                   |
-          v                v                   v
- [Configurar límites] [Historial de alarmas] [Gráfico temporal]
-                           |
-                           v
-             [Guardado local en archivos .csv]
-                           |
-                           v
-                [Exportación de datos a .xlsx]
-                           |
-                           v
-                          FIN
+flowchart LR
+    A[Sensores] --> B[ESP32]
+    B --> C[OLED]
+    B --> D[Buzzer]
+    B --> E[MQTT]
+    E --> F[Servidor MQTT]
+    G[Simulación de otras incubadoras] --> F
+    F --> H[GUI]
+    H --> I[Monitoreo en tiempo real]
+    H --> J[Alertas visuales]
+    H --> K[Detalle por incubadora]
+    K --> L[Límites y tolerancias]
+    K --> M[Historial de alarmas]
+    K --> N[Gráficos temporales]
+    M --> O[CSV por incubadora]
+    O --> P[Exportación a XLSX]
