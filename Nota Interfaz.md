@@ -11,19 +11,4 @@ La versión actual colecta los datos captados por un único ESP32 y simula los d
 
 # Diagrama de flujo:
 
-flowchart LR
-    A[Sensores] --> B[ESP32]
-    B --> C[OLED]
-    B --> D[Buzzer]
-    B --> E[MQTT]
-    E --> F[Servidor MQTT]
-    G[Simulación de otras incubadoras] --> F
-    F --> H[GUI]
-    H --> I[Monitoreo en tiempo real]
-    H --> J[Alertas visuales]
-    H --> K[Detalle por incubadora]
-    K --> L[Límites y tolerancias]
-    K --> M[Historial de alarmas]
-    K --> N[Gráficos temporales]
-    M --> O[CSV por incubadora]
-    O --> P[Exportación a XLSX]
+<img width="3874" height="828" alt="mermaid-diagram" src="https://github.com/user-attachments/assets/fd648bee-5850-489c-9053-17d61666c86a" />
