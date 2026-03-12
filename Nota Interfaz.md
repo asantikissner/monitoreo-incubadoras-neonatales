@@ -10,7 +10,7 @@ La versión actual colecta los datos captados por un único ESP32 y simula los d
 
 
 # Diagrama de flujo:
-```
+```mermaid
 flowchart LR
 
     A[Hardware<br/>ESP32 + sensores + OLED/buzzer] --> B[Comunicación<br/>MQTT]
