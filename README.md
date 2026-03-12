@@ -47,6 +47,10 @@ El proyecto propone una solución basada en sensores, ESP32 y una interfaz gráf
 - Implementación de adquisición, comunicación y visualización de datos (data/servidor_flask_csv.py)
 - Desarrollo de la interfaz gráfica (data/XXX.html)
 
+## Documentación adicional
+
+- [Flujo software-hardware](Flowchart.md)
+
 ## Alcance
 
 Este repositorio corresponde a un proyecto académico orientado al desarrollo de una solución biomédica, integrando hardware, sensores, comunicaciones y software.
