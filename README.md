@@ -1,4 +1,4 @@
-# NeoSensa - Interfaz de Monitoreo de Incubadoras Neonatales
+# NeoSensa - Sistema de Monitoreo de Incubadoras Neonatales
 
 Proyecto académico realizado en la carrera de Bioingeniería (ITBA), en el marco de la materia Instrumentación Biomédica II.
 
