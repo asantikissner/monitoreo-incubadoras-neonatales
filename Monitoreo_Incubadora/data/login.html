@@ -67,10 +67,14 @@
                 <div class="invalid-feedback" id="passwordError">La contraseña no puede estar vacía</div>
             </div>
             <button type="submit" class="btn btn-primary btn-block">Ingresar</button>
+            <div class="invalid-feedback mt-3 text-center" id="loginError"></div>
         </form>
     </div>
 
     <script>
+        const AUTH_API_BASE = "http://localhost:5000";
+        const SESSION_STORAGE_KEY = "neosensa_sesion";
+
         document.getElementById("togglePassword").addEventListener("click", function() {
             const passwordInput = document.getElementById("password");
             const eyeIcon = document.getElementById("eyeIcon");
@@ -79,8 +83,21 @@
             eyeIcon.className = type === "password" ? "bi bi-eye" : "bi bi-eye-slash";
         });
 
-        document.getElementById("loginForm").addEventListener("submit", function(e) {
+        function mostrarErrorLogin(mensaje) {
+            const loginError = document.getElementById("loginError");
+            loginError.textContent = mensaje;
+            loginError.style.display = "block";
+        }
+
+        function ocultarErrorLogin() {
+            const loginError = document.getElementById("loginError");
+            loginError.textContent = "";
+            loginError.style.display = "none";
+        }
+
+        document.getElementById("loginForm").addEventListener("submit", async function(e) {
             e.preventDefault();
+            ocultarErrorLogin();
 
             const emailInput = document.getElementById("email");
             const passwordInput = document.getElementById("password");
@@ -104,7 +121,34 @@
             }
 
             if (valid) {
-                window.location.href = "home2.html";
+                try {
+                    const response = await fetch(`${AUTH_API_BASE}/login`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            email,
+                            password
+                        })
+                    });
+                    const data = await response.json().catch(() => ({}));
+
+                    if (!response.ok || !data.ok) {
+                        mostrarErrorLogin(data.error || "Correo o contraseña incorrectos.");
+                        return;
+                    }
+
+                    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+                        session_id: data.session_id,
+                        email: data.email,
+                        nombre: data.nombre,
+                        inicio: data.inicio
+                    }));
+                    window.location.href = "home2.html";
+                } catch (error) {
+                    mostrarErrorLogin("No se pudo contactar al servidor de autenticación.");
+                }
             }
         });
     </script>

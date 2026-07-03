@@ -14,17 +14,27 @@
 #define PIN_BUZZER 16
 #define PIN_BOTON 4
 
+const bool BUZZER_HABILITADO = true;  // Temporal: probar boton sin sonido
+
 // OLED display
 U8G2_SH1106_128X64_NONAME_F_HW_I2C display(
   U8G2_R0, U8X8_PIN_NONE, SCL_PIN, SDA_PIN
 );
 
+// CASA!!!!!
 // WiFi credentials
-const char* ssid     = "Wifi Lola Erbin "; //CAMBIAR!!
-const char* password = "Lolaerbin2"; //CAMBIAR!!
+//const char* ssid     = "Fibertel WiFi696 2.4GHz"; //CAMBIAR!!
+//const char* password = "00413579699"; //CAMBIAR!!
 
 // Server for limits
-const char* limits_server_ip   = "10.33.239.240"; //CAMBIAR!!
+//const char* limits_server_ip   = "192.168.0.141"; //CAMBIAR!!
+
+// CELU!!!!!
+const char* ssid     = "Anto's WiFi"; //CAMBIAR!!
+const char* password = "pecanegrocolada"; //CAMBIAR!!
+
+// Server for limits
+const char* limits_server_ip   = "10.134.93.240"; //CAMBIAR!!
 const int   limits_server_port = 5001;
 char server_url[80];
 
@@ -38,10 +48,19 @@ PubSubClient mqttClient(espClient);
 // ESP identifier and topic
 const int  esp_id     = 1;
 String     mqtt_topic = "sensor/1/datos";
+String     mqtt_topic_silenciar;
 
 // Timing
 unsigned long lastSend = 0;
-const unsigned long SEND_INTERVAL = 10000;
+bool firstPublicationPending = true;
+const unsigned long NORMAL_SEND_INTERVAL = 60000UL * 5;  // Sin alarma: cada 5 min
+const unsigned long ALARM_SEND_INTERVAL = 10000UL;      // Con alarma: cada 10 s
+const unsigned long OLED_STARTUP_DURATION = 1000;
+const unsigned long SERIAL_DEBUG_INTERVAL = 2000;
+unsigned long oledStartupStart = 0;
+unsigned long lastSerialDebug = 0;
+bool initialReadingShown = false;
+bool alarmaActivaAnterior = false;
 
 // Limits
 float T_min, T_max, T_tol;
@@ -59,6 +78,132 @@ String fecha;
 // Sensor
 Adafruit_SHT31 sht31;
 
+const int CANTIDAD_MUESTRAS_ADC = 80;
+const unsigned long INTERVALO_MUESTRA_ADC_MS = 3;
+
+struct LecturaAnalogica {
+  int raw;
+  float voltaje;
+};
+
+LecturaAnalogica medirAnalogico(uint8_t pin) {
+  uint32_t sumaRaw = 0;
+  uint32_t sumaMv = 0;
+
+  analogRead(pin);
+  analogReadMilliVolts(pin);
+  delay(INTERVALO_MUESTRA_ADC_MS);
+
+  for (int i = 0; i < CANTIDAD_MUESTRAS_ADC; i++) {
+    sumaRaw += analogRead(pin);
+    sumaMv += analogReadMilliVolts(pin);
+    delay(INTERVALO_MUESTRA_ADC_MS);
+  }
+
+  LecturaAnalogica lectura;
+  lectura.raw = sumaRaw / CANTIDAD_MUESTRAS_ADC;
+  lectura.voltaje = (sumaMv / (float)CANTIDAD_MUESTRAS_ADC) / 1000.0;
+  return lectura;
+}
+
+float calibrarLuzUwCm2(float voltaje) {
+  // Curva por tramos medida contra equipo calibrado.
+  // Salida en uW/cm2. El ultimo punto se usa como limite saturado.
+  const float voltajes[] = {0.142, 0.351, 2.780, 2.800, 3.050, 3.160, 3.600};
+  const float luzUwCm2[] = {0.000, 0.040, 0.097, 0.117, 0.170, 0.410, 0.520};
+  const size_t cantidadPuntos = sizeof(voltajes) / sizeof(voltajes[0]);
+
+  if (voltaje <= voltajes[0]) {
+    return luzUwCm2[0];
+  }
+
+  if (voltaje >= voltajes[cantidadPuntos - 1]) {
+    return luzUwCm2[cantidadPuntos - 1];
+  }
+
+  for (size_t i = 1; i < cantidadPuntos; i++) {
+    if (voltaje <= voltajes[i]) {
+      float proporcion = (voltaje - voltajes[i - 1]) / (voltajes[i] - voltajes[i - 1]);
+      return luzUwCm2[i - 1] + proporcion * (luzUwCm2[i] - luzUwCm2[i - 1]);
+    }
+  }
+
+  return luzUwCm2[cantidadPuntos - 1];
+}
+
+float calibrarOxigenoPorcentaje(float voltaje) {
+  // Ajuste lineal usando los puntos medios de las mediciones:
+  // 0.907V=21%, 1.713V=36%, 1.9665V=39%, 2.0445V=43%, 2.320V=47%.
+  const float pendiente = 18.39647163;
+  const float ordenada = 4.26663649;
+  float oxigeno = pendiente * voltaje + ordenada;
+
+  if (oxigeno < 21.0) {
+    return 21.0;
+  }
+
+  if (oxigeno > 100.0) {
+    return 100.0;
+  }
+
+  return oxigeno;
+}
+
+// =========================
+// LÓGICA DE SILENCIADO
+// =========================
+bool silenced = false;
+unsigned long silenceStart = 0;
+const unsigned long SILENCE_DURATION = 60000;   // 60 s
+
+
+const unsigned long BUTTON_HOLD_TIME = 3000;    // 3 s
+
+
+// =========================
+// VARIABLES PARA BOTÓN + ISR
+// =========================
+volatile bool buttonEventPending = false;
+volatile bool buttonLevelISR = LOW;
+volatile unsigned long lastInterruptTime = 0;
+
+
+// Variables procesadas en loop()
+bool buttonCurrentlyPressed = false;
+unsigned long buttonPressStartTime = 0;
+bool holdActionExecuted = false;
+
+
+// Servidores NTP
+const char* ntpServer1 = "pool.ntp.org";
+const char* ntpServer2 = "time.nist.gov";
+
+
+// Zona horaria Argentina
+const long gmtOffset_sec = -3 * 3600;
+const int daylightOffset_sec = 0;
+
+
+// =====================================================
+// ISR DEL BOTÓN
+// Solo registra estado y marca evento
+// =====================================================
+void IRAM_ATTR handleButtonInterrupt() {
+  unsigned long nowMicros = micros();
+
+
+  // debounce básico por tiempo
+  if (nowMicros - lastInterruptTime < 50000) { // 50 ms
+    return;
+  }
+
+
+  lastInterruptTime = nowMicros;
+  buttonLevelISR = digitalRead(PIN_BOTON);
+  buttonEventPending = true;
+}
+
+
 void connectWiFi() {
   Serial.print("Conectando a WiFi");
   WiFi.begin(ssid, password);
@@ -70,13 +215,36 @@ void connectWiFi() {
   Serial.print("IP: "); Serial.println(WiFi.localIP());
 }
 
+void silenciarBuzzer() {
+  silenced = true;
+  silenceStart = millis();
+  digitalWrite(PIN_BUZZER, LOW);
+  Serial.println("Orden MQTT -> buzzer silenciado durante 60 s");
+}
+
+void manejarMensajeMQTT(char* topic, byte* payload, unsigned int length) {
+  Serial.print("MQTT recibido en: ");
+  Serial.println(topic);
+
+  if (String(topic) == mqtt_topic_silenciar) {
+    silenciarBuzzer();
+  }
+}
+
 void connectMQTT() {
   mqttClient.setServer(mqtt_server, mqtt_port);
+  mqttClient.setCallback(manejarMensajeMQTT);
   while (!mqttClient.connected()) {
     String clientId = "ESP32_" + String(esp_id);
     Serial.print("Conectando MQTT...");
     if (mqttClient.connect(clientId.c_str())) {
       Serial.println(" OK");
+      if (mqttClient.subscribe(mqtt_topic_silenciar.c_str())) {
+        Serial.print("Suscripto a: ");
+        Serial.println(mqtt_topic_silenciar);
+      } else {
+        Serial.println("No se pudo suscribir al tópico para silenciar la alarma");
+      }
     } else {
       Serial.print(" Falló rc=");
       Serial.print(mqttClient.state());
@@ -119,18 +287,18 @@ void cargarLimites() {
     }
   } else {
     /////////////////////////// BORRAR ESTO, ES PARA QUE LE FUNCIONE A LOLA
-    T_min = 36;
-    T_max = 37;
+    T_min = 34;
+    T_max = 38;
     T_tol = 1;
-    H_min = 30;
-    H_max = 50;
-    H_tol = 5;
-    I_min = 350;
-    I_max = 1500;
-    I_tol = 100;
-    O_min = 32;
-    O_max = 80;
-    O_tol = 10;
+    H_min = 22;
+    H_max = 60;
+    H_tol = 1;
+    I_min = 0.01;
+    I_max = 0.8;
+    I_tol = 0.01;
+    O_min = 23;
+    O_max = 40;
+    O_tol = 2;
     ////////////////////////////
     Serial.print("HTTP error: ");
     Serial.println(http.GET());
@@ -138,13 +306,7 @@ void cargarLimites() {
   http.end();
 }
 
-// Servidores NTP
-const char* ntpServer1 = "pool.ntp.org";
-const char* ntpServer2 = "time.nist.gov";
 
-// Zona horaria de Argentina: UTC -3 horas
-const long gmtOffset_sec = -3 * 3600;
-const int daylightOffset_sec = 0;
 
 void configurarHora() {
   // Configura NTP y la zona horaria
@@ -233,22 +395,27 @@ bool publicarLectura(float t, float h, float l, float o) {
   return ok;
 }
 
-// Variables de estado
-bool silenced        = false;
-unsigned long silenceStart = 0;
-bool prevButtonState = HIGH;  // Partimos asumiendo botón no presionado (pull‑up)
-
+//////////////
 void setup() {
   Serial.begin(115200);
   pinMode(LED, OUTPUT);
-  pinMode(PIN_BOTON, INPUT_PULLUP);  // Botón como entrada
+  pinMode(PIN_BOTON, INPUT);  // Botón como entrada
   pinMode(PIN_BUZZER, OUTPUT);        // Buzzer como salida
+  analogReadResolution(12);
+  analogSetPinAttenuation(PIN_LUZ_ANALOG, ADC_11db);
+  analogSetPinAttenuation(PIN_O2_ANALOG, ADC_11db);
+
+   // Buzzer apagado al inicio
+  digitalWrite(PIN_BUZZER, LOW);
+// Interrupción por cualquier cambio del botón
+  attachInterrupt(digitalPinToInterrupt(PIN_BOTON), handleButtonInterrupt, CHANGE);
 
   connectWiFi();
   configurarHora();
 
   // Tópico estático para tu ESP
   mqtt_topic = "sensor/" + String(esp_id) + "/datos";
+  mqtt_topic_silenciar = "incubadora/" + String(esp_id) + "/silenciar_alarma";
 
   connectMQTT();
   cargarLimites();
@@ -262,119 +429,263 @@ void setup() {
   display.begin();
   display.clearBuffer();
   display.setFont(u8g2_font_ncenB08_tr);
-  display.drawStr(0, 12, "OLED OK!");
+  display.drawStr(0, 12, "INICIANDO...");
   display.sendBuffer();
+  oledStartupStart = millis();
 }
 
 void loop() {
+  unsigned long now = millis();
+
+
+  // =====================================================
+  // 1) PROCESAR EVENTO DE BOTÓN CAPTURADO POR ISR
+  // =====================================================
+  if (buttonEventPending) {
+    noInterrupts();
+    bool level = buttonLevelISR;
+    buttonEventPending = false;
+    interrupts();
+
+
+    if (level == HIGH) {
+      buttonCurrentlyPressed = true;
+      buttonPressStartTime = now;
+      holdActionExecuted = false;
+      Serial.println("ISR -> boton PRESIONADO");
+    } else {
+      buttonCurrentlyPressed = false;
+      holdActionExecuted = false;
+      Serial.println("ISR -> boton SUELTO");
+    }
+  }
+
+
+  // Si sigue presionado, medir cuánto tiempo lleva
+  if (buttonCurrentlyPressed && !holdActionExecuted) {
+    if (now - buttonPressStartTime >= BUTTON_HOLD_TIME) {
+      if ((alarma_H || alarma_T) && !silenced) {
+        silenced = true;
+        silenceStart = now;
+        holdActionExecuted = true;
+
+
+        digitalWrite(PIN_BUZZER, LOW); // OFF
+        Serial.println("Boton mantenido 3 s -> alarma silenciada");
+      }
+    }
+  }
+
+
+  // =====================================================
+  // 2) MQTT
+  // =====================================================
   if (!mqttClient.connected()) connectMQTT();
   mqttClient.loop();
 
-  unsigned long now = millis();
+
+  // =====================================================
+  // 3) LEER SENSORES
+  // =====================================================
   float t = sht31.readTemperature();
   float h = sht31.readHumidity();
-  float l = analogRead(PIN_LUZ_ANALOG) * (3.3 / 4095.0);
-  float o = analogRead(PIN_O2_ANALOG)  * (3.3 / 4095.0);
+  LecturaAnalogica lecturaLuz = medirAnalogico(PIN_LUZ_ANALOG);
+  LecturaAnalogica lecturaO2 = medirAnalogico(PIN_O2_ANALOG);
+  float lVoltaje = lecturaLuz.voltaje;
+  float l = calibrarLuzUwCm2(lVoltaje);
+  float o = calibrarOxigenoPorcentaje(lecturaO2.voltaje);
 
-  Serial.println(I_min);
-  Serial.println(I_max);
 
+  // =====================================================
+  // 4) EVALUAR ALARMAS
+  // =====================================================
   alarma_T = ((t < T_min - T_tol) || (t > T_max + T_tol));
-  if (alarma_T && (t < T_min - T_tol)){
-    ley_T="baja";
-  } else if (alarma_T && (t > T_max + T_tol)){
-    ley_T="alta";
-  }else {ley_T="-";};
-
-  alarma_H = ((h < H_min - H_tol) || (h > H_max + H_tol));
-  if (alarma_H && (h < H_min - H_tol)){
-    ley_H="baja";
-  } else if (alarma_H && (h > H_max + H_tol)){
-    ley_H="alta";
-  }else {ley_H="-";};
-
-  alarma_I = ((l < I_min - I_tol) || (l > I_max + I_tol));
-  if (alarma_I && (l < I_min - I_tol)){
-    ley_I="baja";
-  } else if (alarma_I && (l > I_max + I_tol)){
-    ley_I="alta";
-  }else {ley_I="-";};
-
-  alarma_O = ((o < O_min - O_tol) || (o > O_max + O_tol));
-  if (alarma_O && (o < O_min - O_tol)){
-    ley_O="bajo";
-  } else if (alarma_O && (o > O_max + O_tol)){
-    ley_O="alto";
-  }else {ley_O="-";};
-
-  fecha = obtenerTimestamp();
-  Serial.print("Diff (ms): ");
-  Serial.println(now - lastSend);
-
-  if (alarma_H==true || now - lastSend >= SEND_INTERVAL) {
-    bool ok = publicarLectura(t, h, l, o);
-    if (ok) {
-      lastSend = now;
-    }
-     // ———————— actualizar OLED ————————
-    char buf[32];
-    display.clearBuffer();
-    display.setFont(u8g2_font_ncenB12_tr);
-    //CALIBRAR LOS ANALOGICOS (AHORA ESTAN EN VOLTS)
-    snprintf(buf, sizeof(buf), "Temp: %.1f °C", t);
-    display.drawStr(0,  14, buf);
-    snprintf(buf, sizeof(buf), "Hum: %.1f %%", h);
-    display.drawStr(0, 28, buf);
-    snprintf(buf, sizeof(buf), "Luz: %.2f V", l);
-    display.drawStr(0, 42, buf);
-    snprintf(buf, sizeof(buf), "O2:  %.2f V", o);
-    display.drawStr(0, 56, buf);
-    display.sendBuffer();
+  if (alarma_T && (t < T_min - T_tol)) {
+    ley_T = "baja";
+  } else if (alarma_T && (t > T_max + T_tol)) {
+    ley_T = "alta";
+  } else {
+    ley_T = "-";
   }
 
-  delay(100);  // suaviza el ciclo
 
+  alarma_H = ((h < H_min - H_tol) || (h > H_max + H_tol));
+  if (alarma_H && (h < H_min - H_tol)) {
+    ley_H = "baja";
+  } else if (alarma_H && (h > H_max + H_tol)) {
+    ley_H = "alta";
+  } else {
+    ley_H = "-";
+  }
+
+
+  alarma_I = ((l < I_min - I_tol) || (l > I_max + I_tol));
+  if (alarma_I && (l < I_min - I_tol)) {
+    ley_I = "baja";
+  } else if (alarma_I && (l > I_max + I_tol)) {
+    ley_I = "alta";
+  } else {
+    ley_I = "-";
+  }
+
+
+  alarma_O = ((o < O_min - O_tol) || (o > O_max + O_tol));
+  if (alarma_O && (o < O_min - O_tol)) {
+    ley_O = "bajo";
+  } else if (alarma_O && (o > O_max + O_tol)) {
+    ley_O = "alto";
+  } else {
+    ley_O = "-";
+  }
+
+
+  fecha = obtenerTimestamp();
+
+  if (now - lastSerialDebug >= SERIAL_DEBUG_INTERVAL) {
+    Serial.printf(
+      "Lectura -> T: %.2f C | H: %.2f %% | Irr: %.3f uW/cm2 | O2: %.2f %% | Alarmas T:%d H:%d I:%d O:%d\n",
+      t, h, l, o,
+      alarma_T, alarma_H, alarma_I, alarma_O
+    );
+    lastSerialDebug = now;
+  }
+
+
+  // =====================================================
+  // 5) BUZZER
+  // =====================================================
+  const unsigned long ahoraBuzzer = millis();
+  if (alarma_H or alarma_T) {
+    if (silenced) {
+      if (ahoraBuzzer - silenceStart < SILENCE_DURATION) {
+        digitalWrite(PIN_BUZZER, LOW);   // OFF
+      } else {
+        silenced = false;
+        digitalWrite(PIN_BUZZER, BUZZER_HABILITADO ? HIGH : LOW);  // ON
+        Serial.println("Fin del silencio de 60 s -> buzzer ON");
+      }
+    } else {
+      digitalWrite(PIN_BUZZER, BUZZER_HABILITADO ? HIGH : LOW);    // ON
+    }
+  } else {
+    silenced = false;
+    digitalWrite(PIN_BUZZER, LOW);       // OFF
+  }
+
+
+  // =====================================================
+  // 6) PUBLICACIÓN MQTT + OLED
+  // =====================================================
+  // Cualquier variable fuera de rango cambia la frecuencia de actualización.
+  // El cambio de estado se comunica inmediatamente, sin esperar al intervalo.
+  bool hayAlarma = alarma_T || alarma_H || alarma_I || alarma_O;
+  bool cambioEstadoAlarma = hayAlarma != alarmaActivaAnterior;
+  unsigned long intervaloActual = hayAlarma
+      ? ALARM_SEND_INTERVAL
+      : NORMAL_SEND_INTERVAL;
+  bool shouldPublish = firstPublicationPending ||
+                       cambioEstadoAlarma ||
+                       (now - lastSend >= intervaloActual);
+
+  if (shouldPublish) {
+    // Tomar una muestra nueva justo en el instante de publicacion/OLED.
+    t = sht31.readTemperature();
+    h = sht31.readHumidity();
+    lecturaLuz = medirAnalogico(PIN_LUZ_ANALOG);
+    lecturaO2 = medirAnalogico(PIN_O2_ANALOG);
+    lVoltaje = lecturaLuz.voltaje;
+    l = calibrarLuzUwCm2(lVoltaje);
+    o = calibrarOxigenoPorcentaje(lecturaO2.voltaje);
+
+    alarma_T = ((t < T_min - T_tol) || (t > T_max + T_tol));
+    if (alarma_T && (t < T_min - T_tol)) {
+      ley_T = "baja";
+    } else if (alarma_T && (t > T_max + T_tol)) {
+      ley_T = "alta";
+    } else {
+      ley_T = "-";
+    }
+
+    alarma_H = ((h < H_min - H_tol) || (h > H_max + H_tol));
+    if (alarma_H && (h < H_min - H_tol)) {
+      ley_H = "baja";
+    } else if (alarma_H && (h > H_max + H_tol)) {
+      ley_H = "alta";
+    } else {
+      ley_H = "-";
+    }
+
+    alarma_I = ((l < I_min - I_tol) || (l > I_max + I_tol));
+    if (alarma_I && (l < I_min - I_tol)) {
+      ley_I = "baja";
+    } else if (alarma_I && (l > I_max + I_tol)) {
+      ley_I = "alta";
+    } else {
+      ley_I = "-";
+    }
+
+    alarma_O = ((o < O_min - O_tol) || (o > O_max + O_tol));
+    if (alarma_O && (o < O_min - O_tol)) {
+      ley_O = "bajo";
+    } else if (alarma_O && (o > O_max + O_tol)) {
+      ley_O = "alto";
+    } else {
+      ley_O = "-";
+    }
+
+    hayAlarma = alarma_T || alarma_H || alarma_I || alarma_O;
+
+    if (publicarLectura(t, h, l, o)) {
+      lastSend = now;
+      firstPublicationPending = false;
+    }
+  }
+
+  bool shouldUpdateDisplay = shouldPublish ||
+                             (!initialReadingShown &&
+                              now - oledStartupStart >= OLED_STARTUP_DURATION);
+
+  if (shouldUpdateDisplay) {
+    char buf[32];
+    display.clearBuffer();
+    display.setFont(u8g2_font_ncenB08_tr);
+
+
+    snprintf(buf, sizeof(buf), "Temp: %.1f C", t);
+    display.drawStr(0, 14, buf);
+
+
+    snprintf(buf, sizeof(buf), "Hum: %.0f %%", h);
+    display.drawStr(0, 28, buf);
+
+
+    snprintf(buf, sizeof(buf), "Irr: %.3f uW/cm2", l);
+    display.drawStr(0, 42, buf);
+
+
+    snprintf(buf, sizeof(buf), "O2:  %.1f %%", o);
+    display.drawStr(0, 56, buf);
+
+
+    display.sendBuffer();
+    initialReadingShown = true;
+  }
+
+  alarmaActivaAnterior = hayAlarma;
+
+
+  // =====================================================
+  // 7) ACTUALIZACIÓN DE LÍMITES
+  // =====================================================
   static unsigned long lastLimitsCheck = 0;
-  const unsigned long LIMITS_UPDATE_INTERVAL = 1000;  // 1 s
+  const unsigned long LIMITS_UPDATE_INTERVAL = 10000; // reintenta cada 10 s
+
 
   if (now - lastLimitsCheck >= LIMITS_UPDATE_INTERVAL) {
     cargarLimites();
     lastLimitsCheck = now;
   }
 
-  bool currButton = digitalRead(PIN_BOTON);
-  // Detectar “bajón” en el botón (flanco de subida desde HIGH a LOW)
-  if (prevButtonState == HIGH && currButton == LOW) {
-    // Si pulsa y estamos en alerta y NO estamos ya en silencio, arrancamos 60s de silencio
-    if ( (h < H_min - H_tol || h > H_max + H_tol) && !silenced ) {
-      silenced = true;
-      silenceStart = now;
-    }
-  }
-  prevButtonState = currButton;
-  const unsigned long SILENCE_DURATION = 60000; 
-  // Lógica del buzzer
-  bool alerta = (h < H_min - H_tol) || (h > H_max + H_tol);
 
-  if (alerta) {
-    if (silenced) {
-      // Durante los 5s de silencio, mantenemos el buzzer OFF
-      if (now - silenceStart < SILENCE_DURATION) {
-        digitalWrite(PIN_BUZZER, HIGH);  // *OFF* 
-      } 
-      else {
-        silenced = false;
-        digitalWrite(PIN_BUZZER, LOW);   // *ON*
-      }
-    }
-    else {
-      // Alerta normal (no silenciado)
-      digitalWrite(PIN_BUZZER, LOW);     // *ON*
-    }
-  }
-  else {
-    // Sin alerta, siempre OFF y resetea
-    silenced = false;
-    digitalWrite(PIN_BUZZER, HIGH);      // *OFF*
-  }
+  delay(5);
 }

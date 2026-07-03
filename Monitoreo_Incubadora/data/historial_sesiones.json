@@ -1,0 +1,368 @@
+{
+  "sesiones": [
+    {
+      "session_id": "fdf0296a2c8741ae80fdce9829b30b7e",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-01T14:57:05",
+      "fin": null,
+      "ultima_actividad": "2026-07-01T14:58:48",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "47fb1f188c26428d99fb302160112cd6",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-01T14:58:55",
+      "fin": "2026-07-01T14:58:57",
+      "ultima_actividad": "2026-07-01T14:58:57",
+      "activa": false,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "ee4e1c2f1fbc40aaa5ffdec5e216016e",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T13:46:10",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T13:48:09",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "3ed5203e351e4884984ea296fce0581e",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T14:03:09",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T14:27:13",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": true,
+      "cambios_limites": [
+        {
+          "fecha": "2026-07-02T14:04:39",
+          "esp": "1",
+          "cambios": {
+            "Itol": {
+              "antes": 0.1,
+              "despues": 0.01
+            }
+          }
+        },
+        {
+          "fecha": "2026-07-02T14:05:50",
+          "esp": "1",
+          "cambios": {
+            "Imin": {
+              "antes": 0.5,
+              "despues": 0.01
+            }
+          }
+        },
+        {
+          "fecha": "2026-07-02T14:06:14",
+          "esp": "1",
+          "cambios": {
+            "Omax": {
+              "antes": 89.98,
+              "despues": 40
+            }
+          }
+        },
+        {
+          "fecha": "2026-07-02T14:06:36",
+          "esp": "1",
+          "cambios": {
+            "Hmin": {
+              "antes": 50,
+              "despues": 22
+            }
+          }
+        },
+        {
+          "fecha": "2026-07-02T14:07:31",
+          "esp": "1",
+          "cambios": {
+            "Tmin": {
+              "antes": 36,
+              "despues": 35
+            }
+          }
+        }
+      ]
+    },
+    {
+      "session_id": "3546afbaac4a433283565eaffcd4b45d",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T14:27:21",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T14:58:48",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "dff677d985cb4a1881bb25674cfb22de",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T14:59:53",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T16:26:49",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": true,
+      "cambios_limites": [
+        {
+          "fecha": "2026-07-02T15:29:37",
+          "esp": "1",
+          "cambios": {
+            "Tmin": {
+              "antes": 35,
+              "despues": 31
+            }
+          }
+        }
+      ]
+    },
+    {
+      "session_id": "1021da339acf4182b88d516db29731fd",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T16:27:10",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T16:28:36",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "16654050de3f424a8d2a7f701ad1bc5d",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T16:30:03",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T16:40:23",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "d0c2fed45f5b4a2c9a7875163cc53826",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T16:41:51",
+      "fin": "2026-07-02T16:42:01",
+      "ultima_actividad": "2026-07-02T16:42:01",
+      "activa": false,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "6358a9f27a7d4a0bb75052908352aca2",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T16:42:12",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T17:16:08",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": true,
+      "cambios_limites": [
+        {
+          "fecha": "2026-07-02T16:42:51",
+          "esp": "1",
+          "cambios": {
+            "Tmin": {
+              "antes": 31,
+              "despues": 34
+            }
+          }
+        },
+        {
+          "fecha": "2026-07-02T16:44:32",
+          "esp": "1",
+          "cambios": {
+            "Htol": {
+              "antes": 2,
+              "despues": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "session_id": "5be009d310ba4c6583a75ee092490554",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T17:16:49",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T17:25:41",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "921342d09a924d078c14a9a683489606",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T17:26:21",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T17:29:24",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "48e9e76c37cf41a5b14d6bae309907c3",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T17:30:48",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T17:32:14",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "ed329f7d02074326b7748398274c8075",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T17:33:10",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T17:35:28",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "fe6bd0807c5c44429f93f300c3677a10",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T17:37:11",
+      "fin": "2026-07-02T17:41:41",
+      "ultima_actividad": "2026-07-02T17:41:41",
+      "activa": false,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "48f3fae57b14449899506a88f03e173a",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T17:41:49",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T19:45:40",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "caea17b4e904430d9f86c20b28685bf5",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T20:07:56",
+      "fin": null,
+      "ultima_actividad": "2026-07-02T21:12:43",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "be4bc563355c48209a194f419c82d1ab",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-02T21:13:40",
+      "fin": "2026-07-02T22:35:18",
+      "ultima_actividad": "2026-07-02T22:35:18",
+      "activa": false,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": true,
+      "cambios_limites": [
+        {
+          "fecha": "2026-07-02T22:33:12",
+          "esp": "1",
+          "cambios": {
+            "Tmin": {
+              "antes": 34,
+              "despues": 31
+            }
+          }
+        },
+        {
+          "fecha": "2026-07-02T22:34:28",
+          "esp": "1",
+          "cambios": {
+            "Tmin": {
+              "antes": 31,
+              "despues": 33
+            }
+          }
+        }
+      ]
+    },
+    {
+      "session_id": "45904c6f60974792b90b3b6637f6f6b5",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-03T15:50:01",
+      "fin": null,
+      "ultima_actividad": "2026-07-03T15:53:05",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    },
+    {
+      "session_id": "c7c15ca995284c74a502d1efab42eb67",
+      "email": "asantikissner@itba.edu.ar",
+      "nombre": "Antonella Santi Kissner",
+      "inicio": "2026-07-03T16:20:12",
+      "fin": null,
+      "ultima_actividad": "2026-07-03T16:38:12",
+      "activa": true,
+      "ip": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+      "cambio_limites": false,
+      "cambios_limites": []
+    }
+  ]
+}

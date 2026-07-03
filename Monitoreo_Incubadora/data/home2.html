@@ -187,10 +187,12 @@
     <!-- jQuery + bootstrap JS (para dropdown) -->
     <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
     <script src="bootstrap.min.js"></script>
+    <script src="funciones.js"></script>
 
     <script>
-        const pollInterval = 10000;
-        const disconnectThreshold = 30000;
+        const pollInterval = 1000;
+        // Sin alarma publica cada 60 s y con alarma cada 5 min; dejamos margen para red y CSV.
+        const disconnectThreshold = 360000;
         const lastSeen = {};
 
         function crearTarjetaSimple(idx) {
@@ -208,7 +210,7 @@
         <div class="valores" id="valores_${idx}">
           <div id="rowT_${idx}">Temperatura: <span id="T_home_${idx}">--</span> <small class="unit_default">°C</small></div>
           <div id="rowH_${idx}">Humedad: <span id="H_home_${idx}">--</span> <small class="unit_default">%</small></div>
-          <div id="rowI_${idx}">Iluminancia: <span id="I_home_${idx}">--</span> <small class="unit_default">lux</small></div>
+          <div id="rowI_${idx}">Irradiancia: <span id="I_home_${idx}">--</span> <small class="unit_default">uW/cm²</small></div>
           <div id="rowO_${idx}">Oxígeno: <span id="O_home_${idx}">--</span> <small class="unit_default">%</small></div>
         </div>
         <div class="footer-card">
@@ -234,6 +236,18 @@
             }
         }
 
+        function formatParamValue(parametro, valor) {
+            if (valor === null || valor === undefined || valor === "--") return "--";
+            const numero = parseFloat(valor);
+            if (!Number.isFinite(numero)) return valor;
+            return ["H", "O"].includes(parametro) ? numero.toFixed(0) : numero.toFixed(2);
+        }
+
+        function tipoActual(info, parametro) {
+            const tipo = info ? info[`ley_${parametro}_actual`] : null;
+            return tipo && tipo !== "" ? tipo : "-";
+        }
+
         function evaluateInfoFlags(info) {
             // devuelve {alarmActive: bool, connected: bool}
             let alarmActive = false;
@@ -241,13 +255,8 @@
                 alarmActive: false,
                 connected: false
             };
-            ["historial_T", "historial_H", "historial_I", "historial_O"].forEach(k => {
-                if (info[k] && Array.isArray(info[k]) && info[k].length) {
-                    try {
-                        const t = info[k][0].tipo;
-                        if (t && t !== "-") alarmActive = true;
-                    } catch (e) {}
-                }
+            ["T", "H", "I", "O"].forEach(parametro => {
+                if (tipoActual(info, parametro) !== "-") alarmActive = true;
             });
             let connected = false;
             if (info.ultimo_timestamp) {
@@ -273,10 +282,10 @@
 
             // detectar tipos de alarma de cada parámetro
             const tipos = {
-                T: (info && info.historial_T && info.historial_T.length && info.historial_T[0].tipo) ? info.historial_T[0].tipo : "-",
-                H: (info && info.historial_H && info.historial_H.length && info.historial_H[0].tipo) ? info.historial_H[0].tipo : "-",
-                I: (info && info.historial_I && info.historial_I.length && info.historial_I[0].tipo) ? info.historial_I[0].tipo : "-",
-                O: (info && info.historial_O && info.historial_O.length && info.historial_O[0].tipo) ? info.historial_O[0].tipo : "-"
+                T: tipoActual(info, "T"),
+                H: tipoActual(info, "H"),
+                I: tipoActual(info, "I"),
+                O: tipoActual(info, "O")
             };
 
             const flags = evaluateInfoFlags(info);
@@ -301,10 +310,10 @@
             }
 
             // valores
-            const htmlT = renderParamHTML("Temperatura", (info && info.T_actual !== undefined && info.T_actual !== null) ? info.T_actual : "--", tipos.T, "°C");
-            const htmlH = renderParamHTML("Humedad", (info && info.H_actual !== undefined && info.H_actual !== null) ? info.H_actual : "--", tipos.H, "%");
-            const htmlI = renderParamHTML("Iluminancia", (info && info.I_actual !== undefined && info.I_actual !== null) ? info.I_actual : "--", tipos.I, "lux");
-            const htmlO = renderParamHTML("Oxígeno", (info && info.O_actual !== undefined && info.O_actual !== null) ? info.O_actual : "--", tipos.O, "%");
+            const htmlT = renderParamHTML("Temperatura", formatParamValue("T", info && info.T_actual), tipos.T, "°C");
+            const htmlH = renderParamHTML("Humedad", formatParamValue("H", info && info.H_actual), tipos.H, "%");
+            const htmlI = renderParamHTML("Irradiancia", formatParamValue("I", info && info.I_actual), tipos.I, "uW/cm²");
+            const htmlO = renderParamHTML("Oxígeno", formatParamValue("O", info && info.O_actual), tipos.O, "%");
 
             const valoresDiv = document.getElementById("valores_" + idx);
             if (valoresDiv) {

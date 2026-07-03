@@ -89,7 +89,7 @@
                     <a id="urlI" href=""><svg xmlns="http://www.w3.org/2000/svg " width="20 " height="20 " fill="currentColor " class="bi bi-lightbulb " viewBox="0 0 16 16 ">
                             <path d="M2 6a6 6 0 1 1 10.174 4.31c-.203.196-.359.4-.453.619l-.762 1.769A.5.5 0 0 1 10.5 13a.5.5 0 0 1 0 1 .5.5 0 0 1 0 1l-.224.447a1 1 0 0 1-.894.553H6.618a1 1 0 0 1-.894-.553L5.5 15a.5.5 0 0 1 0-1 .5.5 0 0 1 0-1 .5.5 0
         0 1-.46-.302l-.761-1.77a2 2 0 0 0-.453-.618A5.98 5.98 0 0 1 2 6m6-5a5 5 0 0 0-3.479 8.592c.263.254.514.564.676.941L5.83 12h4.342l.632-1.467c.162-.377.413-.687.676-.941A5 5 0 0 0 8 1 "/>
-                          </svg>    Iluminancia </a>
+                          </svg>    Irradiancia </a>
                 </li>
                 <li class=" ">
                     <a id="urlO" href=""><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-lungs" viewBox="0 0 16 16">
@@ -204,12 +204,12 @@
                         </div>
                     </div>
 
-                    <!-- Iluminancia -->
+                    <!-- Irradiancia -->
                     <div class="span3">
                         <canvas id="ICanvas"></canvas>
-                        <div><span id="IValue">-- lux</span></div>
+                        <div><span id="IValue">-- uW/cm²</span></div>
                         <div class="chart-bottom-heading">
-                            <span class="label label-warning">Iluminancia</span>
+                            <span class="label label-warning">Irradiancia</span>
                         </div>
                     </div>
 
@@ -264,7 +264,7 @@
                                         <td id="hora_H">-</td>
                                     </tr>
                                     <tr>
-                                        <th>Iluminancia</th>
+                                        <th>Irradiancia</th>
                                         <td><span id="ultima_I">-</span><svg xmlns="http://www.w3.org/2000/svg" id="warning_I3" width="16" height="16" fill="red" class="bi bi-exclamation-triangle-fill oculto" viewBox="0 0 16 16">
                                             <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
                                           </svg></td>
@@ -282,6 +282,9 @@
                                     </tr>
                                 </tbody>
                             </table>
+                            <button type="button" class="btn btnSilenciarAlarma" id="botonSilenciarAlarma">
+                                Silenciar alarma
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -320,11 +323,11 @@
                                         <td><input class="input" type="number" id="Htol_input" step="0.01"> %</td>
                                     </tr>
                                     <tr>
-                                        <th>Iluminancia</th>
+                                        <th>Irradiancia</th>
                                         <td>
-                                            <input class="input" type="number" id="Imin_input" step="0.01"> lux</td>
-                                        <td><input class="input" type="number" id="Imax_input" step="0.01"> lux</td>
-                                        <td><input class="input" type="number" id="Itol_input" step="0.01"> lux</td>
+                                            <input class="input" type="number" id="Imin_input" step="0.01"> uW/cm²</td>
+                                        <td><input class="input" type="number" id="Imax_input" step="0.01"> uW/cm²</td>
+                                        <td><input class="input" type="number" id="Itol_input" step="0.01"> uW/cm²</td>
                                     </tr>
                                     <tr>
                                         <th>Oxígeno</th>
@@ -363,7 +366,7 @@
 
             if (esp_id) { // Muestra numero de esp en la barra superior
                 document.getElementById("numero_incubadora").textContent = `Incubadora ${esp_id}`;
-                document.getElementById("urlG").href = `generales2.html?esp2=${esp_id}`;
+                document.getElementById("urlG").href = `generales2.html?esp=${esp_id}`;
                 document.getElementById("urlT").href = `temperatura2.html?esp=${esp_id}`;
                 document.getElementById("urlH").href = `humedad2.html?esp=${esp_id}`;
                 document.getElementById("urlI").href = `iluminancia2.html?esp=${esp_id}`;
@@ -387,6 +390,8 @@
                 });
             });
 
+            configurarBotonSilenciarAlarma(client, esp_id);
+
             //////////////////////////////////////////////////////////////////////////////////////
 
             iniciarTabla_gral(esp_id);
@@ -396,15 +401,13 @@
                 fetch(`http://localhost:5001/limites?esp=${esp_id}`)
                     .then(res => {
                         console.log("✅ Respuesta completa:", res);
-                        return res.text(); // <- primero miramos el texto crudo
+                        return res.text();
                     })
-                    .then(texto => {
+                    .then(async texto => {
                         console.log("🧾 Texto recibido:", texto);
                         try {
-                            const data = JSON.parse(texto); // parseás vos a mano para ver si falla
-                            console.log("✅ JSON parseado:", data);
+                            const data = JSON.parse(texto);
 
-                            // Solo si anduvo el parseo, asignás los límites
                             Tmin = data.Tmin;
                             Tmax = data.Tmax;
                             Hmin = data.Hmin;
@@ -422,17 +425,37 @@
                                 const input = document.getElementById(`${clave}_input`);
                                 if (input) input.value = data[clave];
                             }
-                            gaugeT = gauges('T', 34, 42, Tmin, Tmax, Ttol);
+                            Object.keys(rangosGauge).forEach(actualizarRestriccionesLimites);
+
+                            gaugeT = gauges('T', 30, 42, Tmin, Tmax, Ttol);
                             gaugeH = gauges('H', 20, 80, Hmin, Hmax, Htol);
-                            gaugeI = gauges('I', 200, 2000, Imin, Imax, Itol);
+                            gaugeI = gauges('I', 0, 3, Imin, Imax, Itol);
                             gaugeO = gauges('O', 21, 100, Omin, Omax, Otol);
 
-                            recientes = obtenerDatos(esp_id);
-                            gaugeT.set(recientes.dato_T);
-                            gaugeH.set(recientes.dato_H);
-                            gaugeI.set(recientes.dato_I);
-                            gaugeO.set(recientes.dato_O);
+                            const recientes = await obtenerDatos(esp_id);
+                            console.log("Prueba T", recientes.dato_T);
 
+                            if (recientes.dato_T != null) {
+                                gaugeT.set(recientes.dato_T);
+                                document.getElementById("TValue").textContent = recientes.dato_T.toFixed(2) + " °C";
+                            }
+
+                            if (recientes.dato_H != null) {
+                                gaugeH.set(recientes.dato_H);
+                                document.getElementById("HValue").textContent = recientes.dato_H.toFixed(0) + " %";
+                            }
+
+                            if (recientes.dato_I != null) {
+                                gaugeI.set(recientes.dato_I);
+                                document.getElementById("IValue").textContent = recientes.dato_I.toFixed(2) + " uW/cm²";
+                            }
+
+                            if (recientes.dato_O != null) {
+                                gaugeO.set(recientes.dato_O);
+                                document.getElementById("OValue").textContent = recientes.dato_O.toFixed(0) + " %";
+                            }
+
+                            console.log("✅ JSON parseado:", data);
                         } catch (err) {
                             console.error("❌ Error al parsear el JSON manualmente:", err);
                         }
@@ -442,7 +465,114 @@
                     });
             });
             // 2) Al hacer clic en “Enviar Límites”, tomo los valores de los inputs
-            document.getElementById("botonlimites").addEventListener("click", () => {
+            const rangosGauge = {
+                T: {
+                    nombre: "Temperatura",
+                    min: 30,
+                    max: 42
+                },
+                H: {
+                    nombre: "Humedad",
+                    min: 20,
+                    max: 80
+                },
+                I: {
+                    nombre: "Irradiancia",
+                    min: 0,
+                    max: 3
+                },
+                O: {
+                    nombre: "Oxígeno",
+                    min: 21,
+                    max: 100
+                }
+            };
+
+            function actualizarRestriccionesLimites(parametro) {
+                const rango = rangosGauge[parametro];
+                const minimo = document.getElementById(`${parametro}min_input`);
+                const maximo = document.getElementById(`${parametro}max_input`);
+                const tolerancia = document.getElementById(`${parametro}tol_input`);
+                const valorTolerancia = parseFloat(tolerancia.value);
+
+                tolerancia.min = 0;
+                tolerancia.max = (rango.max - rango.min) / 2;
+
+                if (!Number.isFinite(valorTolerancia) || valorTolerancia < 0) {
+                    minimo.removeAttribute("min");
+                    minimo.removeAttribute("max");
+                    maximo.removeAttribute("min");
+                    maximo.removeAttribute("max");
+                    return;
+                }
+
+                const minimoPermitido = rango.min + valorTolerancia;
+                const maximoPermitido = rango.max - valorTolerancia;
+
+                minimo.min = minimoPermitido;
+                minimo.max = maximoPermitido;
+                maximo.min = minimoPermitido;
+                maximo.max = maximoPermitido;
+            }
+
+            function validarLimites() {
+                let esValido = true;
+
+                for (const [parametro, rango] of Object.entries(rangosGauge)) {
+                    const minimo = document.getElementById(`${parametro}min_input`);
+                    const maximo = document.getElementById(`${parametro}max_input`);
+                    const tolerancia = document.getElementById(`${parametro}tol_input`);
+                    const valorMinimo = parseFloat(minimo.value);
+                    const valorMaximo = parseFloat(maximo.value);
+                    const valorTolerancia = parseFloat(tolerancia.value);
+
+                    minimo.setCustomValidity("");
+                    maximo.setCustomValidity("");
+                    tolerancia.setCustomValidity("");
+
+                    if (!Number.isFinite(valorMinimo) || !Number.isFinite(valorMaximo) || !Number.isFinite(valorTolerancia)) {
+                        minimo.setCustomValidity("Completá todos los valores.");
+                    } else if (valorTolerancia < 0) {
+                        tolerancia.setCustomValidity("El valor ingresado debe ser mayor o igual a 0.");
+                    } else if (valorMinimo >= valorMaximo) {
+                        maximo.setCustomValidity("El valor ingresado debe ser mayor que el límite mínimo.");
+                    } else {
+                        const minimoPermitido = rango.min + valorTolerancia;
+                        const maximoPermitido = rango.max - valorTolerancia;
+
+                        if (valorMinimo < minimoPermitido || valorMinimo > maximoPermitido) {
+                            minimo.setCustomValidity(`El valor ingresado debe ser mayor o igual a ${minimoPermitido}.`);
+                        }
+                        if (valorMaximo < minimoPermitido || valorMaximo > maximoPermitido) {
+                            maximo.setCustomValidity(`El valor ingresado debe ser menor o igual a ${maximoPermitido}.`);
+                        }
+                    }
+
+                    if (!minimo.reportValidity() || !maximo.reportValidity() || !tolerancia.reportValidity()) {
+                        esValido = false;
+                    }
+                }
+
+                return esValido;
+            }
+
+            for (const parametro of Object.keys(rangosGauge)) {
+                const inputs = ["min", "max", "tol"].map(tipo =>
+                    document.getElementById(`${parametro}${tipo}_input`)
+                );
+
+                inputs.forEach(input => input.addEventListener("input", () => {
+                    actualizarRestriccionesLimites(parametro);
+                    input.setCustomValidity("");
+                }));
+
+                actualizarRestriccionesLimites(parametro);
+            }
+
+            document.getElementById("botonlimites").addEventListener("click", async(e) => {
+                e.preventDefault();
+                if (!validarLimites()) return;
+
                 const config = {
                     esp: esp_id,
                     Tmin: parseFloat(document.getElementById("Tmin_input").value),
@@ -472,20 +602,53 @@
                 Itol = config.Itol;
                 Otol = config.Otol;
 
+                try {
+                    const auditoria = await guardarLimitesAuditados(config);
+
+                    // 3) Publico esos límites por MQTT al tópico config/limites
+                    client.publish("config/limites", JSON.stringify(config));
+                    const mensajeCambios = auditoria.cambio_limites ? "Se registró el cambio en el historial." : "No hubo cambios respecto de los límites guardados.";
+                    alert(`📤 Límites enviados para ESP ${esp_id}. ${mensajeCambios}`);
+                } catch (error) {
+                    alert(error.message || "No se pudieron guardar los límites.");
+                    return;
+                }
+
+                // Limpiar contenedores antes de redibujar
+                document.getElementById("TCanvas").innerHTML = "";
+                document.getElementById("HCanvas").innerHTML = "";
+                document.getElementById("ICanvas").innerHTML = "";
+                document.getElementById("OCanvas").innerHTML = "";
+
+                console.log("Prueba");
+
+                // Recrear gauges
                 gaugeT = gauges('T', 34, 42, Tmin, Tmax, Ttol);
                 gaugeH = gauges('H', 20, 80, Hmin, Hmax, Htol);
-                gaugeI = gauges('I', 200, 2000, Imin, Imax, Itol);
+                gaugeI = gauges('I', 0, 3, Imin, Imax, Itol);
                 gaugeO = gauges('O', 21, 100, Omin, Omax, Otol);
 
-                recientes = obtenerDatos(esp_id);
-                gaugeT.set(recientes.dato_T);
-                gaugeH.set(recientes.dato_H);
-                gaugeI.set(recientes.dato_I);
-                gaugeO.set(recientes.dato_O);
+                // Volver a cargar último dato para que no arranquen en mínimo
+                const recientes = await obtenerDatos(esp_id);
 
-                // 3) Publico esos límites por MQTT al tópico config/limites
-                client.publish("config/limites", JSON.stringify(config));
-                alert(`📤 Límites enviados para ESP ${esp_id}`);
+
+                if (recientes.dato_T != null) gaugeT.set(recientes.dato_T);
+                if (recientes.dato_H != null) gaugeH.set(recientes.dato_H);
+                if (recientes.dato_I != null) gaugeI.set(recientes.dato_I);
+                if (recientes.dato_O != null) gaugeO.set(recientes.dato_O);
+
+                if (recientes.dato_T != null) {
+                    document.getElementById("TValue").textContent = recientes.dato_T.toFixed(2) + " °C";
+                }
+                if (recientes.dato_H != null) {
+                    document.getElementById("HValue").textContent = recientes.dato_H.toFixed(0) + " %";
+                }
+                if (recientes.dato_I != null) {
+                    document.getElementById("IValue").textContent = recientes.dato_I.toFixed(2) + " uW/cm²";
+                }
+                if (recientes.dato_O != null) {
+                    document.getElementById("OValue").textContent = recientes.dato_O.toFixed(0) + " %";
+                }
             });
 
             //////////////////////////////////////////////////////////////////////////////////////
@@ -518,9 +681,9 @@
                 gaugeI.set(iluminancia_mqtt);
                 gaugeO.set(oxigeno_mqtt);
                 document.getElementById("TValue").textContent = data.temperatura.toFixed(2) + " °C";
-                document.getElementById("HValue").textContent = data.humedad.toFixed(2) + " %";
-                document.getElementById("IValue").textContent = data.iluminancia.toFixed(2) + " lux";
-                document.getElementById("OValue").textContent = data.oxigeno.toFixed(2) + " %";
+                document.getElementById("HValue").textContent = data.humedad.toFixed(0) + " %";
+                document.getElementById("IValue").textContent = data.iluminancia.toFixed(2) + " uW/cm²";
+                document.getElementById("OValue").textContent = data.oxigeno.toFixed(0) + " %";
 
                 if (data.alarma_T === true) {
                     document.getElementById("ALERTA_T2").classList.add("oculto");
@@ -578,7 +741,7 @@
                     document.getElementById("warning_I").classList.remove("oculto");
                     document.getElementById("ALERTA_I").classList.remove("oculto");
                     document.getElementById("warning_I3").classList.remove("oculto");
-                    actualizarLeyenda("#leyenda_I", data.ley_I, "Iluminancia ");
+                    actualizarLeyenda("#leyenda_I", data.ley_I, "Irradiancia ");
                     actualizarDato("#fecha_I", Fecha(fecha_mqtt), "");
                     actualizarDato("#hora_I", tiempo_mqtt, "");
                 } else {

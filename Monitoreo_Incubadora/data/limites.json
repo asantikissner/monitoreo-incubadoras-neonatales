@@ -4,13 +4,13 @@
         "Tmax": 38,
         "Hmin": 85,
         "Hmax": 95,
-        "Imin": 500,
-        "Imax": 2000,
+        "Imin": 0.5,
+        "Imax": 2.0,
         "Omin": 78,
         "Omax": 91,
         "Ttol": 1,
         "Htol": 1,
-        "Itol": 1,
+        "Itol": 0.1,
         "Otol": 1
     },
     "2": {
@@ -18,13 +18,13 @@
         "Tmax": 38,
         "Hmin": 85,
         "Hmax": 95,
-        "Imin": 500,
-        "Imax": 2000,
+        "Imin": 0.5,
+        "Imax": 2.0,
         "Omin": 78,
         "Omax": 91,
         "Ttol": 1,
         "Htol": 1,
-        "Itol": 1,
+        "Itol": 0.1,
         "Otol": 1
     }
 

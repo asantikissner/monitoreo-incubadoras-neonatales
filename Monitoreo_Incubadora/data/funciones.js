@@ -1,3 +1,121 @@
+const AUTH_API_BASE = "http://localhost:5000";
+const LIMITES_API_BASE = "http://localhost:5001";
+const SESSION_STORAGE_KEY = "neosensa_sesion";
+
+function obtenerSesionGuardada() {
+    try {
+        return JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY));
+    } catch (error) {
+        return null;
+    }
+}
+
+function limpiarSesionGuardada() {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+function guardarSesionLocal(sesion) {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sesion));
+}
+
+async function verificarSesionActiva() {
+    const sesion = obtenerSesionGuardada();
+    if (!sesion || !sesion.session_id) return null;
+
+    const response = await fetch(`${AUTH_API_BASE}/session`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Session-Id": sesion.session_id
+        },
+        body: JSON.stringify({ session_id: sesion.session_id })
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.ok ? { ...sesion, ...data } : null;
+}
+
+function redirigirALogin() {
+    limpiarSesionGuardada();
+    window.location.href = "login.html";
+}
+
+async function protegerSesion() {
+    const sesion = await verificarSesionActiva();
+    if (!sesion) {
+        redirigirALogin();
+        return null;
+    }
+    guardarSesionLocal(sesion);
+    const etiquetasUsuario = document.querySelectorAll("[data-user-label]");
+    etiquetasUsuario.forEach(el => {
+        el.textContent = sesion.nombre || sesion.email;
+    });
+    return sesion;
+}
+
+async function cerrarSesion(event) {
+    if (event) event.preventDefault();
+    const sesion = obtenerSesionGuardada();
+
+    if (sesion && sesion.session_id) {
+        try {
+            await fetch(`${AUTH_API_BASE}/logout`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Session-Id": sesion.session_id
+                },
+                body: JSON.stringify({ session_id: sesion.session_id })
+            });
+        } catch (error) {
+            console.warn("No se pudo registrar el cierre de sesión:", error);
+        }
+    }
+
+    redirigirALogin();
+}
+
+async function guardarLimitesAuditados(config) {
+    const sesion = obtenerSesionGuardada();
+    if (!sesion || !sesion.session_id) {
+        throw new Error("No hay una sesión activa.");
+    }
+
+    const response = await fetch(`${LIMITES_API_BASE}/limites`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Session-Id": sesion.session_id
+        },
+        body: JSON.stringify({
+            ...config,
+            session_id: sesion.session_id
+        })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+        throw new Error(data.error || "No se pudieron guardar los límites.");
+    }
+    return data;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    protegerSesion().catch(() => redirigirALogin());
+
+    document.querySelectorAll('a[href="login.html"]').forEach(link => {
+        if (link.textContent.includes("Cerrar sesión")) {
+            link.addEventListener("click", cerrarSesion);
+        }
+    });
+
+    setInterval(() => {
+        verificarSesionActiva().catch(() => {});
+    }, 60000);
+});
+
 let fecha_mqtt = null;
 let tiempo_mqtt = null;
 let tipo_mqtt = null;
@@ -15,6 +133,28 @@ let gaugeH = null;
 let gaugeI = null;
 let gaugeO = null;
 let Tmin, Tmax, Hmin, Hmax, Imin, Imax, Omin, Omax;
+
+function configurarBotonSilenciarAlarma(client, esp_id) {
+    const boton = document.getElementById("botonSilenciarAlarma");
+    if (!boton) return;
+
+    boton.addEventListener("click", () => {
+        if (!esp_id) {
+            alert("No se pudo identificar la incubadora.");
+            return;
+        }
+        if (!client.connected) {
+            alert("No hay conexión con el broker MQTT. Esperá unos segundos e intentá nuevamente.");
+            return;
+        }
+
+        client.publish(`incubadora/${esp_id}/silenciar_alarma`, JSON.stringify({
+            esp: esp_id,
+            accion: "silenciar_alarma"
+        }));
+        alert("Se envió la orden para silenciar la alarma durante 60 segundos.");
+    });
+}
 
 
 function Fecha(fechaISO) {
@@ -35,6 +175,113 @@ function actualizarDato(selector, nuevoValor, sufijo = " ") {
 
 function actualizarLeyenda(selector, nuevoValor, Parametro = " ") {
     document.querySelector(selector).textContent = Parametro + nuevoValor;
+}
+
+function decimalesParametro(parametro = "") {
+    return ["H", "O"].includes(parametro) ? 0 : 2;
+}
+
+function formatearValorParametro(valor, parametro = "") {
+    const numero = parseFloat(valor);
+    if (!Number.isFinite(numero)) return valor;
+    return numero.toFixed(decimalesParametro(parametro));
+}
+
+function parametroDesdeHistorial(historialParametro = "") {
+    const partes = historialParametro.split("_");
+    return partes[partes.length - 1] || "";
+}
+
+const GRAFICO_VENTANA_MS = 60 * 60 * 1000;
+let graficoVentanaOffset = 0;
+
+function fechaGraficoMs(fecha) {
+    const valor = new Date(fecha).getTime();
+    return Number.isFinite(valor) ? valor : null;
+}
+
+function formatearHoraVentana(ms) {
+    return new Date(ms).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+}
+
+function obtenerTiemposGrafico(chart) {
+    const puntos = chart.data.datasets[0].data || [];
+    return puntos
+        .map(p => fechaGraficoMs(p.x))
+        .filter(t => t !== null);
+}
+
+function obtenerExtremoDerechoGrafico(chart) {
+    const tiempos = obtenerTiemposGrafico(chart);
+
+    if (tiempos.length === 0) return Date.now();
+    return Math.max(...tiempos);
+}
+
+function actualizarEtiquetaVentanaGrafico(chart, inicio, fin) {
+    const contenedor = chart.canvas.parentElement;
+    const etiqueta = contenedor ? contenedor.querySelector("[data-grafico-ventana]") : null;
+    if (!etiqueta) return;
+
+    etiqueta.textContent = `${formatearHoraVentana(inicio)} - ${formatearHoraVentana(fin)}`;
+}
+
+function aplicarVentanaGrafico(chart) {
+    const tiempos = obtenerTiemposGrafico(chart);
+    const ultimo = obtenerExtremoDerechoGrafico(chart);
+    const primero = tiempos.length > 0 ? Math.min(...tiempos) : ultimo;
+    const maxOffset = Math.max(0, Math.ceil((ultimo - primero) / GRAFICO_VENTANA_MS) - 1);
+    graficoVentanaOffset = Math.min(graficoVentanaOffset, maxOffset);
+
+    const fin = ultimo - (graficoVentanaOffset * GRAFICO_VENTANA_MS);
+    const inicio = Math.max(primero, fin - GRAFICO_VENTANA_MS);
+
+    chart.options.scales.x.min = inicio;
+    chart.options.scales.x.max = fin;
+    actualizarEtiquetaVentanaGrafico(chart, inicio, fin);
+    chart.update();
+
+    const contenedor = chart.canvas.parentElement;
+    if (!contenedor) return;
+
+    const btnAdelante = contenedor.querySelector("[data-grafico-adelante]");
+    if (btnAdelante) btnAdelante.disabled = graficoVentanaOffset === 0;
+
+    const btnAtras = contenedor.querySelector("[data-grafico-atras]");
+    if (btnAtras) btnAtras.disabled = graficoVentanaOffset >= maxOffset;
+}
+
+function configurarNavegacionGrafico(chart) {
+    const contenedor = chart.canvas.parentElement;
+    if (!contenedor || contenedor.querySelector(".grafico-controles")) return;
+
+    const controles = document.createElement("div");
+    controles.className = "grafico-controles";
+    controles.innerHTML = `
+        <button type="button" class="btn btn-mini" data-grafico-atras title="Ver hora anterior">←</button>
+        <span data-grafico-ventana>--:-- - --:--</span>
+        <button type="button" class="btn btn-mini" data-grafico-adelante title="Ver hora siguiente">→</button>
+    `;
+
+    const encabezado = contenedor.querySelector(".block-header");
+    if (encabezado) {
+        encabezado.appendChild(controles);
+    } else {
+        contenedor.insertBefore(controles, chart.canvas);
+    }
+
+    controles.querySelector("[data-grafico-atras]").addEventListener("click", () => {
+        graficoVentanaOffset += 1;
+        aplicarVentanaGrafico(chart);
+    });
+
+    controles.querySelector("[data-grafico-adelante]").addEventListener("click", () => {
+        graficoVentanaOffset = Math.max(0, graficoVentanaOffset - 1);
+        aplicarVentanaGrafico(chart);
+    });
 }
 
 
@@ -84,8 +331,8 @@ async function obtenerDatos(esp_id) {
 }
 
 function completarTabla_home(Parametro = "", datos, esp_id, unidad = "") {
-    if (datos && datos.length !== 0) {
-        const valor = parseFloat(datos).toFixed(2);
+    if (datos !== null && datos !== undefined && datos !== "") {
+        const valor = formatearValorParametro(datos, Parametro);
         document.getElementById(`${Parametro}_home_${esp_id}`).textContent = valor + unidad;
     }
 }
@@ -164,7 +411,8 @@ async function actualizarGrafico(esp_id, datos_parametro = "", parametro_grafico
             y: d[parametro_grafico]
         }));
 
-        if (fecha_mqtt && parametro_mqtt != null) {
+        const puntoMqttYaExiste = datosParametro.some(p => p.x === fecha_mqtt);
+        if (fecha_mqtt && parametro_mqtt != null && !puntoMqttYaExiste) {
             datosParametro.push({
                 x: fecha_mqtt,
                 y: parametro_mqtt
@@ -184,8 +432,9 @@ async function actualizarGrafico(esp_id, datos_parametro = "", parametro_grafico
 
         chart.data.datasets[0].data = datosParametro;
         chart.data.datasets[0].pointBackgroundColor = colores;
+        configurarNavegacionGrafico(chart);
+        aplicarVentanaGrafico(chart);
         console.log("📈 Actualizando gráfico con", datosParametro.length, "puntos");
-        chart.update();
 
     } catch (error) {
         console.error("❌ Error al cargar datos:", error);
@@ -197,20 +446,21 @@ async function actualizarHistorial(esp_id, historial_parametro = "", parametro_m
     const data = await response.json();
     const info = data[`incubadora_${esp_id}`]
     const historial = info[historial_parametro];
+    const parametro = parametroDesdeHistorial(historial_parametro);
 
     if (tipo_mqtt !== null && tipo_mqtt !== "-" && parametro_mqtt !== null && fecha_mqtt !== null) { // Si llega una alarma por MQTT
-        document.getElementById("valor_1").textContent = parametro_mqtt.toFixed(2) + unidad;
+        document.getElementById("valor_1").textContent = formatearValorParametro(parametro_mqtt, parametro) + unidad;
         document.getElementById("tipo_1").textContent = tipo_mqtt;
         document.getElementById("fecha_1").textContent = fecha_mqtt.replace("T", " ");
 
         for (let i = 1; i < Math.min(historial.length, 14); i++) {
-            document.getElementById(`valor_${ i + 1 }`).textContent = historial[i].valor.toFixed(2) + unidad;
+            document.getElementById(`valor_${ i + 1 }`).textContent = formatearValorParametro(historial[i].valor, parametro) + unidad;
             document.getElementById(`tipo_${ i + 1 }`).textContent = historial[i].tipo
             document.getElementById(`fecha_${ i + 1 }`).textContent = historial[i].fecha.replace("T", " ");
         }
     } else {
         for (let i = 0; i < Math.min(historial.length, 14); i++) {
-            document.getElementById(`valor_${ i + 1 }`).textContent = historial[i].valor.toFixed(2) + unidad;
+            document.getElementById(`valor_${ i + 1 }`).textContent = formatearValorParametro(historial[i].valor, parametro) + unidad;
             document.getElementById(`tipo_${ i + 1 }`).textContent = historial[i].tipo;
             document.getElementById(`fecha_${ i + 1 }`).textContent = historial[i].fecha.replace("T", " ");
         }
@@ -255,11 +505,11 @@ async function iniciarEstadistica_Parametro(esp_id, historial_Parametro = "", pa
 
     if (estadisticas && estadisticas.length !== 0) {
         document.getElementById(`N_${ Letra }`).textContent = hist.length;
-        document.getElementById(`min_${ Letra }`).textContent = minimo + unidad;
-        document.getElementById(`max_${ Letra }`).textContent = maximo + unidad;
-        document.getElementById(`media_${ Letra }`).textContent = media + unidad;
-        document.getElementById(`mediana_${ Letra }`).textContent = mediana + unidad;
-        document.getElementById(`desvio_${ Letra }`).textContent = desvio + unidad;
+        document.getElementById(`min_${ Letra }`).textContent = formatearValorParametro(minimo, Letra) + unidad;
+        document.getElementById(`max_${ Letra }`).textContent = formatearValorParametro(maximo, Letra) + unidad;
+        document.getElementById(`media_${ Letra }`).textContent = formatearValorParametro(media, Letra) + unidad;
+        document.getElementById(`mediana_${ Letra }`).textContent = formatearValorParametro(mediana, Letra) + unidad;
+        document.getElementById(`desvio_${ Letra }`).textContent = formatearValorParametro(desvio, Letra) + unidad;
     }
 }
 
@@ -269,6 +519,9 @@ function getParametroESP() {
 }
 
 function gauges(parametro = "", Min, Max, lim_inf, lim_sup, tolerancia) {
+    const rango = Max - Min;
+    const decimalesEtiqueta = rango <= 10 ? 2 : 0;
+
     // Calcular puntos de color
     const LI = lim_inf;
     const LS = lim_sup;
@@ -301,7 +554,7 @@ function gauges(parametro = "", Min, Max, lim_inf, lim_sup, tolerancia) {
         staticLabels: {
             font: "10px sans-serif",
             labels: [Min, lim_inf, lim_sup, Max],
-            fractionDigits: 0
+            fractionDigits: decimalesEtiqueta
         },
         // static zones
         staticZones: [{

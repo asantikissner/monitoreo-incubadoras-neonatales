@@ -1,0 +1,8 @@
+{
+  "usuarios": {
+    "asantikissner@itba.edu.ar": {
+      "nombre": "Antonella Santi Kissner",
+      "password_hash": "scrypt:32768:8:1$LnImBjsdE3J4Nncw$75e442cf304bb5b81d3c0e4760569837e9ebb1a4b04f0feca8b9fae52678e906b40664a0cc187d200633a8ea704d23ffb714348056102621c772e663b58469cd"
+    }
+  }
+}

@@ -1,17 +1,82 @@
 # servidor_flask_csv.py (CSV version con claves ordenadas)
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from statistics import mean, median, stdev
 import os, csv, glob, re
 from flask import send_file
 import io
 from datetime import datetime
+from auditoria import (
+    actualizar_actividad,
+    cargar_historial,
+    cerrar_sesion,
+    crear_sesion,
+    sesion_activa,
+    validar_credenciales,
+)
 
 app = Flask(__name__)
 CORS(app)
 
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "scripts", "data"))
-MAX_ROWS = 720  # hasta 720 muestras
+MAX_ROWS = 2160  # hasta 6 h con muestras cada 10 s
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.get_json(silent=True) or {}
+    usuario = validar_credenciales(data.get("email"), data.get("password"))
+    if not usuario:
+        return jsonify({"ok": False, "error": "Credenciales inválidas"}), 401
+
+    sesion = crear_sesion(
+        usuario["email"],
+        nombre=usuario["nombre"],
+        ip=request.remote_addr,
+        user_agent=request.headers.get("User-Agent"),
+    )
+    return jsonify({
+        "ok": True,
+        "session_id": sesion["session_id"],
+        "email": sesion["email"],
+        "nombre": sesion["nombre"],
+        "inicio": sesion["inicio"],
+    }), 200
+
+
+@app.route("/session", methods=["GET", "POST"])
+def session_status():
+    data = request.get_json(silent=True) or {}
+    session_id = (
+        request.headers.get("X-Session-Id")
+        or request.args.get("session_id")
+        or data.get("session_id")
+    )
+    sesion = actualizar_actividad(session_id)
+    if not sesion:
+        return jsonify({"ok": False, "error": "Sesión inválida"}), 401
+    return jsonify({
+        "ok": True,
+        "email": sesion["email"],
+        "nombre": sesion.get("nombre", sesion["email"]),
+        "inicio": sesion["inicio"],
+        "ultima_actividad": sesion["ultima_actividad"],
+    }), 200
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    data = request.get_json(silent=True) or {}
+    session_id = request.headers.get("X-Session-Id") or data.get("session_id")
+    sesion = cerrar_sesion(session_id)
+    if not sesion:
+        return jsonify({"ok": False, "error": "Sesión inválida o ya cerrada"}), 400
+    return jsonify({"ok": True, "fin": sesion["fin"]}), 200
+
+
+@app.route("/historial_sesiones", methods=["GET"])
+def historial_sesiones():
+    return jsonify(cargar_historial()), 200
 
 def calcular_estadisticas(valores):
     nums = []
@@ -39,6 +104,85 @@ def read_csv_rows(path, max_rows=MAX_ROWS):
         rows = reader[:max_rows]  # primeras max_rows (asumo más recientes arriba)
     return rows
 
+def construir_datos_parametro(filas, valor_key, ley_key, grafico_key):
+    datos = []
+    historial = []
+    punto_actual = None
+
+    for fila in filas:
+        fecha = fila.get("fecha")
+        leyenda = fila.get(ley_key, "-")
+        if leyenda == "-":
+            continue
+
+        try:
+            valor = float(fila.get(valor_key))
+        except:
+            valor = None
+
+        if valor is not None:
+            historial.append({"valor": valor, "tipo": leyenda, "fecha": fecha})
+
+    # La medición más reciente se dibuja siempre como punto propio.
+    if filas:
+        try:
+            valor_actual = float(filas[0].get(valor_key))
+        except:
+            valor_actual = None
+
+        if valor_actual is not None:
+            punto_actual = {
+                "fecha_grafico": filas[0].get("fecha"),
+                grafico_key: valor_actual
+            }
+
+    def agregar_grupos(segmento, tamano_grupo):
+        i = 0
+        while i < len(segmento):
+            grupo = segmento[i:i + tamano_grupo]
+            valores = []
+            for fila in grupo:
+                try:
+                    valores.append(float(fila.get(valor_key)))
+                except:
+                    pass
+
+            if valores:
+                medio = len(grupo) // 2
+                datos.append({
+                    "fecha_grafico": grupo[medio].get("fecha"),
+                    grafico_key: round(sum(valores) / len(valores), 4)
+                })
+
+            i += tamano_grupo
+
+    # En alarma se agrupa de a 6 para suavizar la ráfaga de mediciones rápidas.
+    # En estado normal se dibuja cada medición, que en el ESP llega cada 5 min.
+    alarm_keys = ("ley_T", "ley_H", "ley_I", "ley_O")
+    filas_cronologicas = list(reversed(filas))
+    segmento = []
+    estado_segmento = None
+    for fila in filas_cronologicas:
+        estado_fila = any(fila.get(key, "-") != "-" for key in alarm_keys)
+        if estado_segmento is None:
+            estado_segmento = estado_fila
+        elif estado_fila != estado_segmento:
+            agregar_grupos(segmento, 6 if estado_segmento else 1)
+            segmento = []
+            estado_segmento = estado_fila
+
+        segmento.append(fila)
+
+    if segmento:
+        agregar_grupos(segmento, 6 if estado_segmento else 1)
+
+    if punto_actual is not None and (
+        not datos or datos[-1].get("fecha_grafico") != punto_actual["fecha_grafico"]
+    ):
+        datos.append(punto_actual)
+
+    return datos, historial
+
 @app.route("/datos")
 def obtener_datos_csv():
     resultado_final = {}
@@ -60,101 +204,18 @@ def obtener_datos_csv():
                 continue
 
             # estructuras de salida
-            datos_T, historial_T = [], []
-            datos_H, historial_H = [], []
-            datos_I, historial_I = [], []
-            datos_O, historial_O = [], []
-            salt_T = set(); salt_H = set(); salt_I = set(); salt_O = set()
-
-            for i, fila in enumerate(filas):
-                fecha = fila.get("fecha")
-
-                # TEMPERATURA
-                if i not in salt_T:
-                    temp = fila.get("temperatura")
-                    ley_t = fila.get("ley_T", "-")
-                    if ley_t == "-":
-                        cont = 0; suma = 0.0; j = i
-                        while j < len(filas) and filas[j].get("ley_T", "-") == "-" and cont < 6:
-                            try: suma += float(filas[j].get("temperatura", 0))
-                            except: pass
-                            salt_T.add(j); cont += 1; j += 1
-                        if cont > 0:
-                            medio = i + cont//2
-                            fecha_med = filas[medio].get("fecha")
-                            datos_T.append({"fecha_grafico": fecha_med, "temperatura_grafico": round(suma/cont, 4)})
-                    else:
-                        try: valor = float(temp)
-                        except: valor = None
-                        if valor is not None:
-                            historial_T.append({"valor": valor, "tipo": ley_t, "fecha": fecha})
-                            datos_T.append({"fecha_grafico": fecha, "temperatura_grafico": valor})
-
-                # HUMEDAD
-                if i not in salt_H:
-                    hum = fila.get("humedad")
-                    ley_h = fila.get("ley_H", "-")
-                    if ley_h == "-":
-                        cont = 0; suma = 0.0; j = i
-                        while j < len(filas) and filas[j].get("ley_H", "-") == "-" and cont < 6:
-                            try: suma += float(filas[j].get("humedad", 0))
-                            except: pass
-                            salt_H.add(j); cont += 1; j += 1
-                        if cont > 0:
-                            medio = i + cont//2
-                            fecha_med = filas[medio].get("fecha")
-                            datos_H.append({"fecha_grafico": fecha_med, "humedad_grafico": round(suma/cont, 4)})
-                    else:
-                        try: valor = float(hum)
-                        except: valor = None
-                        if valor is not None:
-                            historial_H.append({"valor": valor, "tipo": ley_h, "fecha": fecha})
-                            datos_H.append({"fecha_grafico": fecha, "humedad_grafico": valor})
-
-                # ILUMINANCIA
-                if i not in salt_I:
-                    lux = fila.get("iluminancia")
-                    ley_i = fila.get("ley_I", "-")
-                    if ley_i == "-":
-                        cont = 0; suma = 0.0; j = i
-                        while j < len(filas) and filas[j].get("ley_I", "-") == "-" and cont < 6:
-                            try: suma += float(filas[j].get("iluminancia", 0))
-                            except: pass
-                            salt_I.add(j); cont += 1; j += 1
-                        if cont > 0:
-                            medio = i + cont//2
-                            fecha_med = filas[medio].get("fecha")
-                            datos_I.append({"fecha_grafico": fecha_med, "iluminancia_grafico": round(suma/cont, 4)})
-                    else:
-                        try: valor = float(lux)
-                        except: valor = None
-                        if valor is not None:
-                            historial_I.append({"valor": valor, "tipo": ley_i, "fecha": fecha})
-                            datos_I.append({"fecha_grafico": fecha, "iluminancia_grafico": valor})
-
-                # OXIGENO
-                if i not in salt_O:
-                    ox = fila.get("oxigeno")
-                    ley_o = fila.get("ley_O", "-")
-                    if ley_o == "-":
-                        cont = 0; suma = 0.0; j = i
-                        while j < len(filas) and filas[j].get("ley_O", "-") == "-" and cont < 6:
-                            try: suma += float(filas[j].get("oxigeno", 0))
-                            except: pass
-                            salt_O.add(j); cont += 1; j += 1
-                        if cont > 0:
-                            medio = i + cont//2
-                            fecha_med = filas[medio].get("fecha")
-                            datos_O.append({"fecha_grafico": fecha_med, "oxigeno_grafico": round(suma/cont, 4)})
-                    else:
-                        try: valor = float(ox)
-                        except: valor = None
-                        if valor is not None:
-                            historial_O.append({"valor": valor, "tipo": ley_o, "fecha": fecha})
-                            datos_O.append({"fecha_grafico": fecha, "oxigeno_grafico": valor})
-
-            # invertir para que vayan de más antiguo a más reciente
-            datos_T.reverse(); datos_H.reverse(); datos_I.reverse(); datos_O.reverse()
+            datos_T, historial_T = construir_datos_parametro(
+                filas, "temperatura", "ley_T", "temperatura_grafico"
+            )
+            datos_H, historial_H = construir_datos_parametro(
+                filas, "humedad", "ley_H", "humedad_grafico"
+            )
+            datos_I, historial_I = construir_datos_parametro(
+                filas, "iluminancia", "ley_I", "iluminancia_grafico"
+            )
+            datos_O, historial_O = construir_datos_parametro(
+                filas, "oxigeno", "ley_O", "oxigeno_grafico"
+            )
 
             # valores actuales
             top = filas[0]
@@ -166,6 +227,10 @@ def obtener_datos_csv():
             except: Iact = None
             try: Oact = float(top.get("oxigeno"))
             except: Oact = None
+            ley_Tact = top.get("ley_T", "-")
+            ley_Hact = top.get("ley_H", "-")
+            ley_Iact = top.get("ley_I", "-")
+            ley_Oact = top.get("ley_O", "-")
 
             estad = {
                 "temperatura": calcular_estadisticas([r.get("temperatura") for r in filas]),
@@ -186,6 +251,10 @@ def obtener_datos_csv():
                 "H_actual": Hact,
                 "I_actual": Iact,
                 "O_actual": Oact,
+                "ley_T_actual": ley_Tact,
+                "ley_H_actual": ley_Hact,
+                "ley_I_actual": ley_Iact,
+                "ley_O_actual": ley_Oact,
                 "datos_T": datos_T,
                 "datos_H": datos_H,
                 "datos_I": datos_I,
